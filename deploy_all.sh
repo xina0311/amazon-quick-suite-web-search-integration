@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # 配置变量
 REGION="${1:-us-west-2}"
-BOCHA_API_KEY="${BOCHA_API_KEY:-sk-xxxxxx}"
+BOCHA_API_KEY="${BOCHA_API_KEY:-}"
 
 echo "================================================"
 echo "Bocha Web Search - Quick Suite Integration"
@@ -51,18 +51,31 @@ else
 fi
 echo ""
 
-# 步骤 2: 更新 Lambda 函数中的 API Key
+# 步骤 2: 检查 Bocha API Key 环境变量
 echo "================================================"
-echo "步骤 2/4: 配置 Bocha API Key"
+echo "步骤 2/4: 检查 Bocha API Key 配置"
 echo "================================================"
-if [ "$BOCHA_API_KEY" = "sk-xxxxxx" ]; then
-    echo -e "${YELLOW}⚠ 警告: 使用默认的 API Key${NC}"
-    echo "请设置环境变量: export BOCHA_API_KEY=your-actual-api-key"
-    echo "或编辑 bocha_lambda_function.py 文件"
+if [ -z "$BOCHA_API_KEY" ]; then
+    echo -e "${YELLOW}⚠ 警告: BOCHA_API_KEY 环境变量未设置${NC}"
+    echo ""
+    echo "Lambda 函数需要 BOCHA_API_KEY 环境变量才能工作"
+    echo "部署后，请通过以下方式之一配置："
+    echo ""
+    echo "方式 1: 通过 AWS CLI 设置"
+    echo "  aws lambda update-function-configuration \\"
+    echo "    --function-name BochaWebSearchFunction \\"
+    echo "    --environment Variables={BOCHA_API_KEY=your-api-key} \\"
+    echo "    --region $REGION"
+    echo ""
+    echo "方式 2: 在 AWS Lambda 控制台中手动设置"
+    echo "  1. 打开 Lambda 函数配置"
+    echo "  2. 选择 'Configuration' > 'Environment variables'"
+    echo "  3. 添加 BOCHA_API_KEY 变量"
+    echo ""
+    read -p "按 Enter 继续部署（稍后需要配置 API Key）..." 
 else
-    echo "更新 Lambda 函数中的 API Key..."
-    sed -i.bak "s/sk-xxxxxx/$BOCHA_API_KEY/g" bocha_lambda_function.py
-    echo -e "${GREEN}✓ API Key 已配置${NC}"
+    echo -e "${GREEN}✓ BOCHA_API_KEY 环境变量已设置${NC}"
+    echo "部署时将自动配置到 Lambda 函数"
 fi
 echo ""
 

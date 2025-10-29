@@ -105,8 +105,26 @@ if aws lambda get-function --function-name $LAMBDA_FUNCTION_NAME --region $REGIO
       --zip-file fileb://bocha_lambda_function.zip \
       --region $REGION > /dev/null
     echo "✓ Lambda 函数代码已更新"
+    
+    # 如果设置了 BOCHA_API_KEY 环境变量，更新 Lambda 配置
+    if [ ! -z "$BOCHA_API_KEY" ]; then
+        echo "更新 Lambda 环境变量..."
+        aws lambda update-function-configuration \
+          --function-name $LAMBDA_FUNCTION_NAME \
+          --environment Variables={BOCHA_API_KEY="$BOCHA_API_KEY"} \
+          --region $REGION > /dev/null
+        echo "✓ Lambda 环境变量已更新"
+    fi
 else
     echo "创建新的 Lambda 函数..."
+    
+    # 准备环境变量参数
+    ENV_VARS=""
+    if [ ! -z "$BOCHA_API_KEY" ]; then
+        ENV_VARS="--environment Variables={BOCHA_API_KEY=\"$BOCHA_API_KEY\"}"
+        echo "✓ 将配置 BOCHA_API_KEY 环境变量"
+    fi
+    
     aws lambda create-function \
       --function-name $LAMBDA_FUNCTION_NAME \
       --runtime python3.11 \
@@ -115,6 +133,7 @@ else
       --zip-file fileb://bocha_lambda_function.zip \
       --timeout 30 \
       --memory-size 256 \
+      $ENV_VARS \
       --region $REGION > /dev/null
     echo "✓ Lambda 函数创建成功"
 fi
@@ -149,4 +168,15 @@ echo ""
 echo "Lambda Function Name: $LAMBDA_FUNCTION_NAME"
 echo "Lambda ARN: $LAMBDA_ARN"
 echo ""
+if [ -z "$BOCHA_API_KEY" ]; then
+    echo "⚠ 重要提醒: BOCHA_API_KEY 环境变量未配置"
+    echo "Lambda 函数需要此环境变量才能正常工作"
+    echo ""
+    echo "请运行以下命令配置："
+    echo "  aws lambda update-function-configuration \\"
+    echo "    --function-name $LAMBDA_FUNCTION_NAME \\"
+    echo "    --environment Variables={BOCHA_API_KEY=your-api-key} \\"
+    echo "    --region $REGION"
+    echo ""
+fi
 echo "下一步: 运行 python create_bocha_gateway.py 创建 Gateway"
