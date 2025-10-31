@@ -11,10 +11,11 @@ echo "部署 Lambda 函数 - Bocha Web Search"
 echo "Region: $REGION"
 echo "================================================"
 
-# 检查 cognito-bocha-s2s.txt 是否存在
-if [ ! -f "cognito-bocha-s2s.txt" ]; then
-    echo "错误: cognito-bocha-s2s.txt 文件未找到"
-    echo "请先运行: ./setup_cognito_s2s_bocha.sh $REGION"
+# 检查配置文件是否存在
+CONFIG_FILE="../../config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "错误: 配置文件 $CONFIG_FILE 未找到"
+    echo "请先运行基础设施部署: ./deploy_infrastructure.sh"
     exit 1
 fi
 
@@ -24,7 +25,7 @@ while IFS='=' read -r key value; do
     if [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] && [[ -n "$value" ]]; then
         export "$key"="$value"
     fi
-done < cognito-bocha-s2s.txt
+done < "$CONFIG_FILE"
 
 echo ""
 echo "[Step 1/5] 创建 Lambda 部署包..."
@@ -106,6 +107,10 @@ if aws lambda get-function --function-name $LAMBDA_FUNCTION_NAME --region $REGIO
       --region $REGION > /dev/null
     echo "✓ Lambda 函数代码已更新"
     
+    # 等待代码更新完成
+    echo "等待代码更新完成..."
+    sleep 10
+    
     # 如果设置了 BOCHA_API_KEY 环境变量，更新 Lambda 配置
     if [ ! -z "$BOCHA_API_KEY" ]; then
         echo "更新 Lambda 环境变量..."
@@ -145,20 +150,23 @@ echo "[Step 5/5] 保存 Lambda ARN..."
 LAMBDA_ARN=$(aws lambda get-function --function-name $LAMBDA_FUNCTION_NAME --region $REGION --query 'Configuration.FunctionArn' --output text)
 echo "✓ Lambda Function ARN: $LAMBDA_ARN"
 
-# 检查 LAMBDA_ARN 是否已在配置文件中
-if grep -q "LAMBDA_ARN=" cognito-bocha-s2s.txt; then
+# 保存 Lambda ARN 到配置文件
+if grep -q "BOCHA_LAMBDA_ARN=" "$CONFIG_FILE"; then
     # 更新现有的 ARN
-    sed -i.bak "s|LAMBDA_ARN=.*|LAMBDA_ARN=$LAMBDA_ARN|" cognito-bocha-s2s.txt
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s|BOCHA_LAMBDA_ARN=.*|BOCHA_LAMBDA_ARN=$LAMBDA_ARN|" "$CONFIG_FILE"
+    else
+        sed -i "s|BOCHA_LAMBDA_ARN=.*|BOCHA_LAMBDA_ARN=$LAMBDA_ARN|" "$CONFIG_FILE"
+    fi
 else
     # 添加新的 ARN
-    echo "LAMBDA_ARN=$LAMBDA_ARN" >> cognito-bocha-s2s.txt
+    echo "BOCHA_LAMBDA_ARN=$LAMBDA_ARN" >> "$CONFIG_FILE"
 fi
 
-echo "✓ Lambda ARN 已保存到 cognito-bocha-s2s.txt"
+echo "✓ Lambda ARN 已保存到 config.txt"
 
 # 清理
 rm -f lambda-trust-policy.json
-rm -f cognito-bocha-s2s.txt.bak
 
 echo ""
 echo "================================================"
@@ -179,4 +187,7 @@ if [ -z "$BOCHA_API_KEY" ]; then
     echo "    --region $REGION"
     echo ""
 fi
-echo "下一步: 运行 python create_bocha_gateway.py 创建 Gateway"
+echo "下一步:"
+echo "  1. 测试 Lambda: ./test_lambda.sh"
+echo "  2. 添加到 Gateway: python3 add_target.py"
+echo "  3. 测试 Target: ./test_target.sh"

@@ -1,291 +1,340 @@
-# 博查 Web Search - Amazon Quick Suite 集成
+# Amazon Quick Suite AI Search Integration
 
-本项目提供了将博查 Web Search API 集成到 Amazon Quick Suite 的完整解决方案。
+多 AI 搜索服务集成方案，通过 Amazon Bedrock AgentCore Gateway 将多个 AI Search Providers 集成到 Amazon Quick Suite 中。
 
-## 🎯 功能特性
+## 🎯 项目特点
 
-- ✅ Amazon Cognito Service-to-Service (S2S) 认证
-- ✅ AWS Lambda 函数集成博查 Web Search API
-- ✅ Amazon Bedrock AgentCore Gateway
-- ✅ Amazon Quick Suite MCP Integration
-- ✅ 自动化部署脚本
-- ✅ 完整的故障排除指南
+- ✅ **模块化架构** - 清晰的目录结构，易于扩展
+- ✅ **统一认证** - 使用 Cognito S2S 认证，一次配置永久有效
+- ✅ **灵活部署** - 按需部署不同的搜索服务
+- ✅ **多 Provider 支持** - 目前支持博查和秘塔，可轻松添加更多
+- ✅ **完整文档** - 详细的部署和使用文档
 
-## 📋 前置条件
+## 📁 项目结构
+
+```
+amazon-quick-suite-web-search-integration/
+├── README.md                      # 本文件
+├── deploy_infrastructure.sh       # 基础设施部署脚本
+├── config.txt                     # 配置文件（部署后生成）
+│
+├── utils/                         # 通用工具和脚本
+│   ├── setup_cognito.sh          # Cognito S2S 认证设置
+│   ├── create_gateway.py         # AgentCore Gateway 创建
+│   └── test_gateway.py           # Gateway 测试脚本
+│
+├── providers/                     # AI Search Providers
+│   ├── bocha/                    # 博查搜索
+│   │   ├── README.md
+│   │   ├── bocha_lambda_function.py
+│   │   ├── deploy.sh
+│   │   └── add_target.py
+│   │
+│   └── metaso/                   # 秘塔搜索
+│       ├── README.md
+│       ├── metaso_lambda_function.py
+│       ├── deploy.sh
+│       └── add_target.py
+│
+├── docs/                          # 文档
+│   ├── QUICK_SUITE_SETUP.md      # Quick Suite 配置指南
+│   ├── ARCHITECTURE.md           # 架构设计文档
+│   └── TROUBLESHOOTING.md        # 故障排除指南
+│
+└── templates/                     # 模板文件
+    ├── lambda_function_template.py
+    └── add_new_provider.sh
+```
+
+## 🚀 快速开始
+
+### 前置条件
 
 1. **AWS 账户**
-   - 具有创建 IAM 角色和策略的权限
-   - Amazon Quick Suite 访问权限（Author Pro 订阅）
+   - 创建 IAM 角色和策略的权限
+   - Amazon Quick Suite 访问权限（Author Pro）
 
 2. **本地环境**
    - AWS CLI 已配置 (`aws configure`)
    - Python 3.9+
    - jq (JSON 处理工具)
-   - 命令行环境 (Terminal/Bash)
 
-3. **博查 API**
-   - 博查 Web Search API Key
+3. **API Keys**
+   - 博查 API Key（如需部署博查）
+   - 秘塔 API Key（如需部署秘塔）
 
-## 🚀 快速开始
+### 部署步骤
 
-### 方式 1: 自动化部署（推荐）
-
-```bash
-# 1. 进入项目目录
-cd bocha-web-search-integration
-
-# 2. 设置博查 API Key（可选，也可以在部署后手动更新）
-export BOCHA_API_KEY="your-actual-api-key"
-
-# 3. 运行自动化部署脚本
-chmod +x *.sh
-./deploy_all.sh us-west-2
-```
-
-### 方式 2: 分步部署
+#### 第一步：部署基础设施
 
 ```bash
-# 1. 创建 Cognito S2S 认证
-chmod +x setup_cognito_s2s_bocha.sh
-./setup_cognito_s2s_bocha.sh us-west-2
+# 克隆项目
+git clone <repository-url>
+cd amazon-quick-suite-web-search-integration
 
-# 2. 测试 Token 获取（可选）
-./test-bocha-s2s-token.sh
-
-# 3. 部署 Lambda 函数
-chmod +x deploy_lambda.sh
-./deploy_lambda.sh
-
-# 4. 创建 AgentCore Gateway
-python3 create_bocha_gateway.py
+# 部署 Cognito 和 Gateway
+chmod +x deploy_infrastructure.sh
+./deploy_infrastructure.sh us-east-1
 ```
 
-## 📁 项目结构
+这将创建：
+- Cognito User Pool 和 App Client
+- AgentCore Gateway
+- 配置文件 `config.txt`
 
-```
-bocha-web-search-integration/
-├── README.md                          # 本文件
-├── setup_cognito_s2s_bocha.sh         # Cognito S2S 认证设置脚本
-├── bocha_lambda_function.py           # Lambda 函数代码
-├── deploy_lambda.sh                   # Lambda 部署脚本
-├── create_bocha_gateway.py            # Gateway 创建脚本
-├── deploy_all.sh                      # 一键自动化部署脚本
-└── cognito-bocha-s2s.txt              # 配置文件（部署后生成）
-```
+#### 第二步：部署 AI Search Providers
 
-## 🔧 配置 Amazon Quick Suite
-
-部署完成后，按照以下步骤在 Quick Suite 中配置：
-
-1. **登录 Amazon Quick Suite**
-   - 使用 Author Pro 角色权限的账户
-
-2. **创建 MCP Integration**
-   - 导航到：Integrations > Actions > Model Context Protocol
-   - 点击 "+" 创建新的 Integration
-
-3. **配置参数**（从 `cognito-bocha-s2s.txt` 获取）
-   ```
-   Name: Bocha Web Search
-   Description: Real-time web search using Bocha API
-   MCP Endpoint: <GATEWAY_URL>
-   Authentication: Service Authentication
-   Client ID: <CLIENT_ID>
-   Client Secret: <CLIENT_SECRET>
-   Token URL: <TOKEN_ENDPOINT>
-   ```
-
-4. **验证 Integration**
-   - 等待约 1-2 分钟，确认状态为 "Available"
-   - 查看可用的 Actions，应该能看到 `bocha_web_search`
-
-5. **测试**
-   - 在 Chat Agent 中使用提示：
-     ```
-     使用博查搜索功能，帮我查找关于 "Amazon Bedrock" 的最新信息
-     ```
-
-## 📝 配置文件说明
-
-部署后会生成 `cognito-bocha-s2s.txt` 文件，包含所有配置信息：
-
-```
-POOL_ID=<Cognito User Pool ID>
-REGION=<AWS Region>
-CLIENT_ID=<App Client ID>
-CLIENT_SECRET=<App Client Secret>
-TOKEN_ENDPOINT=<OAuth Token URL>
-DISCOVERY_URL=<OIDC Discovery URL>
-LAMBDA_ARN=<Lambda Function ARN>
-GATEWAY_ARN=<AgentCore Gateway ARN>
-GATEWAY_URL=<Gateway Endpoint URL>
-```
-
-**注意**：请妥善保管此文件，其中包含敏感信息（Client Secret）。
-
-## 🧪 测试
-
-### 测试 Cognito Token
+##### 选项 A: 部署博查搜索
 
 ```bash
-./test-bocha-s2s-token.sh
+# 设置 API Key
+export BOCHA_API_KEY="your-bocha-api-key"
+
+# 部署博查
+cd providers/bocha
+./deploy.sh
+python3 add_target.py
+cd ../..
 ```
 
-### 测试 Lambda 函数
+##### 选项 B: 部署秘塔搜索
 
 ```bash
-aws lambda invoke \
-  --function-name BochaWebSearchFunction \
-  --region us-west-2 \
-  --payload '{"body": "{\"name\": \"bocha_web_search\", \"arguments\": {\"query\": \"test\"}}"}' \
-  response.json
-cat response.json
+# 设置 API Key
+export METASO_API_KEY="your-metaso-api-key"
+
+# 部署秘塔
+cd providers/metaso
+./deploy.sh
+python3 add_target.py
+cd ../..
 ```
+
+##### 选项 C: 两者都部署
+
+```bash
+# 部署博查
+export BOCHA_API_KEY="your-bocha-api-key"
+cd providers/bocha && ./deploy.sh && python3 add_target.py && cd ../..
+
+# 部署秘塔
+export METASO_API_KEY="your-metaso-api-key"
+cd providers/metaso && ./deploy.sh && python3 add_target.py && cd ../..
+```
+
+#### 第三步：配置 Quick Suite
+
+参考 [Quick Suite 配置指南](docs/QUICK_SUITE_SETUP.md) 完成配置。
+
+## 🎨 AI Search Providers
+
+### 博查 (Bocha)
+
+- **类型**: 通用网页搜索
+- **特点**: 实时性强，新闻覆盖全面
+- **适用场景**: 新闻资讯、最新动态、通用网页内容
+- **文档**: [providers/bocha/README.md](providers/bocha/README.md)
+
+### 秘塔 (Metaso)
+
+- **类型**: 多类型搜索引擎
+- **特点**: 支持 6 种搜索范围
+  - 网页 (webpage)
+  - 文档 (document)
+  - 论文 (paper) ⭐
+  - 图片 (image)
+  - 视频 (video)
+  - 播客 (podcast)
+- **适用场景**: 学术研究、技术文档、多媒体内容
+- **文档**: [providers/metaso/README.md](providers/metaso/README.md)
+
+## 🎯 使用示例
 
 ### 在 Quick Suite 中测试
 
-使用以下提示测试 Integration：
-
-1. **基础搜索**
-   ```
-   使用博查搜索查找关于 "Amazon Bedrock AgentCore" 的信息
-   ```
-
-2. **技术问题**
-   ```
-   搜索一下 Python MCP 开发教程
-   ```
-
-3. **新闻搜索**
-   ```
-   用博查搜索最近关于 AI Agent 的新闻
-   ```
-
-## 🔒 更新博查 API Key
-
-### 方式 1: 通过环境变量
-
-```bash
-# 编辑 Lambda 函数代码
-nano bocha_lambda_function.py
-
-# 更新 BOCHA_API_KEY 行
-BOCHA_API_KEY = "your-new-api-key"
-
-# 重新部署
-./deploy_lambda.sh
+#### 博查搜索
+```
+使用博查搜索查找关于 AWS Lambda 的最新信息
 ```
 
-### 方式 2: 使用 AWS Lambda 环境变量
+#### 秘塔搜索
+```
+使用秘塔搜索查找关于量子计算的学术论文
+```
+
+#### 对比搜索
+```
+分别使用博查和秘塔搜索关于"人工智能"的信息，并对比结果
+```
+
+## 📊 架构说明
+
+```mermaid
+graph TB
+    QS[Amazon Quick Suite]
+    COGNITO[Amazon Cognito S2S]
+    GATEWAY[AgentCore Gateway]
+    
+    BOCHA_T[Bocha Target]
+    METASO_T[Metaso Target]
+    
+    BOCHA_L[Bocha Lambda]
+    METASO_L[Metaso Lambda]
+    
+    BOCHA_API[Bocha API]
+    METASO_API[Metaso API]
+    
+    QS --> COGNITO
+    COGNITO --> GATEWAY
+    
+    GATEWAY --> BOCHA_T
+    GATEWAY --> METASO_T
+    
+    BOCHA_T --> BOCHA_L
+    METASO_T --> METASO_L
+    
+    BOCHA_L --> BOCHA_API
+    METASO_L --> METASO_API
+```
+
+**核心优势**:
+- 统一认证：Quick Suite 只需配置一次
+- 灵活扩展：可轻松添加新的搜索服务
+- 独立部署：每个 Provider 独立管理
+
+详细架构说明请参考 [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+## 🔧 管理和维护
+
+### 查看配置
 
 ```bash
+cat config.txt
+```
+
+### 测试 Gateway
+
+```bash
+cd utils
+python3 test_gateway.py
+```
+
+### 查看日志
+
+```bash
+# 博查日志
+aws logs tail /aws/lambda/BochaWebSearchFunction --follow
+
+# 秘塔日志
+aws logs tail /aws/lambda/MetasoWebSearchFunction --follow
+```
+
+### 更新 API Key
+
+```bash
+# 更新博查 API Key
 aws lambda update-function-configuration \
   --function-name BochaWebSearchFunction \
-  --environment Variables={BOCHA_API_KEY=your-new-api-key} \
-  --region us-west-2
+  --environment Variables={BOCHA_API_KEY=new-key}
+
+# 更新秘塔 API Key
+aws lambda update-function-configuration \
+  --function-name MetasoWebSearchFunction \
+  --environment Variables={METASO_API_KEY=new-key}
 ```
 
-## 🧹 清理资源
+## ➕ 添加新的 Provider
 
-如需删除所有创建的资源：
+1. 在 `providers/` 下创建新目录
+2. 使用 `templates/lambda_function_template.py` 创建 Lambda 函数
+3. 创建 `deploy.sh` 和 `add_target.py` 脚本
+4. 参考现有 Provider 的 README 编写文档
+5. 测试并部署
 
-```bash
-# 运行清理脚本（由 setup 脚本生成）
-./cleanup-cognito-bocha-s2s.sh
+详细步骤请参考 `templates/add_new_provider.sh`
 
-# 手动删除 Lambda 函数
-aws lambda delete-function \
-  --function-name BochaWebSearchFunction \
-  --region us-west-2
+## 📚 文档
 
-# 删除 Lambda IAM 角色
-aws iam detach-role-policy \
-  --role-name BochaLambdaExecutionRole \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+- [Quick Suite 配置指南](docs/QUICK_SUITE_SETUP.md) - Quick Suite 配置步骤
+- [架构设计](docs/ARCHITECTURE.md) - 详细的系统架构
+- [故障排除](docs/TROUBLESHOOTING.md) - 常见问题解决
+- [博查 Provider](providers/bocha/README.md) - 博查搜索文档
+- [秘塔 Provider](providers/metaso/README.md) - 秘塔搜索文档
 
-aws iam delete-role --role-name BochaLambdaExecutionRole
+## 💰 成本估算
 
-# 删除 AgentCore Gateway（需要手动在 AWS Console 中操作）
-```
+基于每月 1000 次搜索：
+
+| 服务 | 月成本 |
+|------|--------|
+| Cognito | ~$0 |
+| Lambda 调用 | ~$0.20 |
+| Lambda 执行 | ~$0.10 |
+| Gateway | ~$5 |
+| 博查 API | 根据订阅 |
+| 秘塔 API | 根据订阅 |
+| **基础设施总计** | **~$5.30** |
+
+## 🔒 安全最佳实践
+
+1. **保护配置文件**
+   - 不要将 `config.txt` 提交到版本控制
+   - 使用 `.gitignore` 忽略敏感文件
+
+2. **API Key 管理**
+   - 定期轮换 API Keys
+   - 生产环境使用 AWS Secrets Manager
+
+3. **权限控制**
+   - 使用最小权限原则配置 IAM
+   - 定期审查权限
+
+4. **监控和日志**
+   - 启用 CloudWatch 监控
+   - 定期检查日志
 
 ## 🐛 故障排除
 
-### 问题 1: Token 获取失败
+### 常见问题
 
-**症状**: `Failed to obtain token`
+1. **基础设施部署失败**
+   - 检查 AWS 凭证配置
+   - 确认有足够的 IAM 权限
+   - 查看详细错误信息
 
-**解决方案**:
-- 检查 AWS CLI 配置
-- 验证 Cognito User Pool 和 App Client 配置
-- 运行 `./test-bocha-s2s-token.sh` 查看详细错误
+2. **Provider 部署失败**
+   - 确认基础设施已部署
+   - 检查 API Key 是否正确
+   - 查看 Lambda 日志
 
-### 问题 2: Lambda 函数错误
+3. **Quick Suite 连接失败**
+   - 确认配置参数正确
+   - 等待 1-2 分钟让系统生效
+   - 检查 Gateway 状态
 
-**症状**: `Internal server error`
+详细故障排除请参考 [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
-**解决方案**:
-```bash
-# 查看 Lambda 日志
-aws logs tail /aws/lambda/BochaWebSearchFunction --follow --region us-west-2
-```
+## 🤝 贡献
 
-### 问题 3: Gateway 连接失败
+欢迎贡献新的 AI Search Provider！
 
-**症状**: `Unable to connect to MCP server`
-
-**解决方案**:
-- 确认 Gateway URL 正确
-- 检查 Cognito Allowed Clients 配置
-- 验证 Lambda 函数状态
-
-### 问题 4: 博查 API 调用失败
-
-**症状**: `HTTP 401 Unauthorized`
-
-**解决方案**:
-- 验证博查 API Key 是否正确
-- 检查博查 API endpoint URL
-- 确认账户状态和 API 额度
-
-## 📚 相关文档
-
-- [完整操作指南](../Bocha_Web_Search_Quick_Suite_Integration_Guide.md)
-- [Amazon Bedrock AgentCore Documentation](https://docs.aws.amazon.com/bedrock-agentcore/)
-- [Amazon Quick Suite Documentation](https://docs.aws.amazon.com/quicksuite/)
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-
-## 💡 注意事项
-
-1. **安全性**
-   - 不要将 `cognito-bocha-s2s.txt` 文件提交到版本控制
-   - 定期轮换 API Key 和 Cognito 凭证
-   - 使用 AWS Secrets Manager 存储敏感信息（生产环境）
-
-2. **成本**
-   - Lambda 调用费用
-   - Cognito 认证费用
-   - AgentCore Gateway 费用
-   - 博查 API 调用费用
-
-3. **限制**
-   - Lambda 默认超时：30秒
-   - Lambda 默认内存：256MB
-   - 博查 API 调用限制（根据您的订阅计划）
-
-## 🤝 支持
-
-如有问题或建议，请：
-1. 查看完整操作指南
-2. 检查故障排除部分
-3. 查看 AWS 服务文档
-4. 联系技术支持
+1. Fork 本项目
+2. 创建新的 Provider
+3. 测试并编写文档
+4. 提交 Pull Request
 
 ## 📄 许可证
 
-本项目遵循 MIT 许可证。
+MIT License
+
+## 📞 支持
+
+- GitHub Issues: 提交问题和建议
+- 文档: 查看完整文档
+- AWS Support: AWS 服务相关问题
 
 ---
 
-**版本**: 1.0  
+**版本**: 2.0  
 **最后更新**: 2025年10月  
-**作者**: AWS Solutions Team
+**维护者**: AWS Solutions Team

@@ -1,6 +1,7 @@
 # 敏感配置文件 - 包含 API Keys 和凭证
 cognito-bocha-s2s.txt
 cognito-bocha-s2s.txt.bak
+config.txt
 *.txt.bak
 
 # Environment configuration (contains secrets)
@@ -41,3 +42,12 @@ response.json
 
 # 日志文件
 *.log
+
+# Lambda 部署临时文件
+providers/*/lambda_deployment/
+*.zip
+lambda_deployment/
+
+# Python 虚拟环境
+venv/
+.venv/

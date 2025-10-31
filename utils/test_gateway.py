@@ -120,19 +120,60 @@ def test_invoke_tool(gateway_url, token, tool_name, arguments):
         
         if 'result' in result:
             tool_result = result['result']
-            if 'content' in tool_result:
-                for content in tool_result['content']:
-                    if content.get('type') == 'text':
-                        text = content.get('text', '')
-                        # 只显示前500字符
-                        print(f"\n  结果预览:")
-                        print(f"  {text[:500]}...")
-            else:
-                print(f"\n  完整结果:")
-                print(f"  {json.dumps(tool_result, indent=2, ensure_ascii=False)}")
-        else:
-            print(f"\n  响应:")
-            print(f"  {json.dumps(result, indent=2, ensure_ascii=False)}")
+            
+            # 解析多层嵌套的响应
+            try:
+                # MCP 响应可能是 list 或 dict with content
+                if isinstance(tool_result, list):
+                    mcp_content = tool_result
+                elif 'content' in tool_result:
+                    mcp_content = tool_result['content']
+                else:
+                    mcp_content = []
+                
+                # 提取第一个 text 类型的内容
+                raw_text = None
+                for item in mcp_content:
+                    if item.get('type') == 'text':
+                        raw_text = item.get('text', '')
+                        break
+                
+                if not raw_text:
+                    print(f"\n  完整结果:")
+                    print(f"  {json.dumps(tool_result, indent=2, ensure_ascii=False)}")
+                else:
+                    # 尝试解析 Lambda 响应（可能是嵌套的 JSON）
+                    try:
+                        lambda_response = json.loads(raw_text)
+                        if 'body' in lambda_response:
+                            # 解析 Lambda body
+                            body = json.loads(lambda_response['body'])
+                            if 'content' in body and body['content']:
+                                # 获取实际的搜索结果文本
+                                actual_text = body['content'][0].get('text', '')
+                                print(f"\n  搜索结果:")
+                                print(f"  " + "="*56)
+                                print(f"  {actual_text[:800]}")
+                                if len(actual_text) > 800:
+                                    print(f"  ...")
+                                print(f"  " + "="*56)
+                            else:
+                                # body 格式不符合预期
+                                print(f"\n  Lambda 响应:")
+                                print(f"  {raw_text[:800]}")
+                        else:
+                            # 不是 Lambda 标准响应格式
+                            print(f"\n  响应内容:")
+                            print(f"  {raw_text[:800]}")
+                    except json.JSONDecodeError:
+                        # 不是 JSON，直接显示
+                        print(f"\n  响应内容:")
+                        print(f"  {raw_text[:800]}")
+                        
+            except Exception as e:
+                print(f"\n  解析错误: {e}")
+                print(f"  原始响应:")
+                print(f"  {json.dumps(tool_result, indent=2, ensure_ascii=False)[:500]}")
         
         return result
     else:

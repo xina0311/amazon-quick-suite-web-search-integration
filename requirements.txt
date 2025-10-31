@@ -1,0 +1,15 @@
+# Amazon Quick Suite AI Search Integration
+# Python 依赖包
+
+# AWS SDK
+boto3>=1.34.0
+
+# HTTP 请求
+requests>=2.31.0
+
+# JSON 处理（Python 标准库，无需安装）
+# json
+
+# 推荐的额外工具
+# AWS CLI 配置检查
+# awscli>=1.32.0

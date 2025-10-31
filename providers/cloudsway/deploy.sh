@@ -1,0 +1,214 @@
+#!/bin/bash
+
+# Cloudsway AI Search Lambda 函数部署脚本
+
+set -e
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# 配置变量
+FUNCTION_NAME="CloudswayWebSearchFunction"
+REGION="${REGION:-us-east-1}"
+ROLE_NAME="CloudswayLambdaExecutionRole"
+CLOUDSWAY_ACCESS_KEY="${CLOUDSWAY_ACCESS_KEY}"
+
+# 检查 Access Key
+if [ -z "$CLOUDSWAY_ACCESS_KEY" ]; then
+    echo -e "${RED}错误: CLOUDSWAY_ACCESS_KEY 环境变量未设置${NC}"
+    echo ""
+    echo "请先设置 Access Key:"
+    echo "  export CLOUDSWAY_ACCESS_KEY=\"your-cloudsway-access-key\""
+    echo ""
+    echo "然后重新运行部署脚本"
+    exit 1
+fi
+
+echo "================================================"
+echo "Cloudsway AI Search Lambda 函数部署"
+echo "================================================"
+echo ""
+echo "Function Name: $FUNCTION_NAME"
+echo "Region: $REGION"
+echo ""
+
+# 检查配置文件是否存在
+CONFIG_FILE="../../config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${RED}错误: 配置文件 $CONFIG_FILE 未找到${NC}"
+    echo "请先运行基础设施部署: ./deploy_infrastructure.sh"
+    exit 1
+fi
+
+# 检查必要的工具
+command -v aws >/dev/null 2>&1 || { echo -e "${RED}错误: 需要安装 AWS CLI${NC}" >&2; exit 1; }
+command -v zip >/dev/null 2>&1 || { echo -e "${RED}错误: 需要安装 zip${NC}" >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo -e "${RED}错误: 需要安装 Python 3${NC}" >&2; exit 1; }
+
+# 检查 AWS 凭证
+aws sts get-caller-identity > /dev/null 2>&1 || { echo -e "${RED}错误: AWS 凭证未配置${NC}" >&2; exit 1; }
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+echo -e "${GREEN}✓ AWS Account ID: $ACCOUNT_ID${NC}"
+echo ""
+
+# 步骤 1: 创建 IAM 角色（如果不存在）
+echo "步骤 1: 检查 IAM 角色..."
+if aws iam get-role --role-name $ROLE_NAME --region $REGION 2>/dev/null; then
+    echo -e "${YELLOW}⚠ IAM 角色已存在，跳过创建${NC}"
+else
+    echo "创建 IAM 角色: $ROLE_NAME"
+    
+    # 创建信任策略
+    cat > /tmp/trust-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+    # 创建角色
+    aws iam create-role \
+        --role-name $ROLE_NAME \
+        --assume-role-policy-document file:///tmp/trust-policy.json \
+        --region $REGION
+
+    # 附加基本执行策略
+    aws iam attach-role-policy \
+        --role-name $ROLE_NAME \
+        --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole \
+        --region $REGION
+
+    echo -e "${GREEN}✓ IAM 角色创建成功${NC}"
+    
+    # 等待角色生效
+    echo "等待 IAM 角色生效..."
+    sleep 10
+fi
+echo ""
+
+# 步骤 2: 准备 Lambda 部署包
+echo "步骤 2: 准备 Lambda 部署包..."
+
+# 创建临时目录
+rm -rf /tmp/cloudsway-lambda
+mkdir -p /tmp/cloudsway-lambda
+
+# 复制 Lambda 函数代码
+cp cloudsway_lambda_function.py /tmp/cloudsway-lambda/lambda_function.py
+
+# 安装依赖
+echo "安装 Python 依赖..."
+pip install requests -t /tmp/cloudsway-lambda/ --quiet
+
+# 创建 ZIP 包
+cd /tmp/cloudsway-lambda
+zip -r /tmp/cloudsway-lambda-deployment.zip . > /dev/null
+cd - > /dev/null
+
+echo -e "${GREEN}✓ 部署包创建成功${NC}"
+echo ""
+
+# 步骤 3: 部署或更新 Lambda 函数
+echo "步骤 3: 部署 Lambda 函数..."
+
+ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
+
+if aws lambda get-function --function-name $FUNCTION_NAME --region $REGION 2>/dev/null; then
+    echo "更新现有 Lambda 函数..."
+    
+    # 更新函数代码
+    aws lambda update-function-code \
+        --function-name $FUNCTION_NAME \
+        --zip-file fileb:///tmp/cloudsway-lambda-deployment.zip \
+        --region $REGION > /dev/null
+    
+    echo "✓ Lambda 函数代码已更新"
+    
+    # 等待代码更新完成
+    echo "等待代码更新完成..."
+    sleep 10
+    
+    # 更新函数配置
+    echo "更新 Lambda 配置..."
+    aws lambda update-function-configuration \
+        --function-name $FUNCTION_NAME \
+        --runtime python3.9 \
+        --handler lambda_function.lambda_handler \
+        --timeout 30 \
+        --memory-size 256 \
+        --environment Variables={CLOUDSWAY_ACCESS_KEY=$CLOUDSWAY_ACCESS_KEY} \
+        --region $REGION > /dev/null
+    
+    echo -e "${GREEN}✓ Lambda 函数更新成功${NC}"
+else
+    echo "创建新的 Lambda 函数..."
+    
+    aws lambda create-function \
+        --function-name $FUNCTION_NAME \
+        --runtime python3.9 \
+        --role $ROLE_ARN \
+        --handler lambda_function.lambda_handler \
+        --zip-file fileb:///tmp/cloudsway-lambda-deployment.zip \
+        --timeout 30 \
+        --memory-size 256 \
+        --environment Variables={CLOUDSWAY_ACCESS_KEY=$CLOUDSWAY_ACCESS_KEY} \
+        --region $REGION > /dev/null
+    
+    echo -e "${GREEN}✓ Lambda 函数创建成功${NC}"
+fi
+
+# 等待函数就绪
+echo "等待函数就绪..."
+sleep 5
+
+# 获取函数 ARN
+LAMBDA_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --region $REGION --query 'Configuration.FunctionArn' --output text)
+echo ""
+echo -e "${GREEN}Lambda Function ARN:${NC}"
+echo "$LAMBDA_ARN"
+echo ""
+
+# 保存 Lambda ARN 到配置文件
+if grep -q "CLOUDSWAY_LAMBDA_ARN=" "$CONFIG_FILE"; then
+    # 更新现有的 ARN
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s|CLOUDSWAY_LAMBDA_ARN=.*|CLOUDSWAY_LAMBDA_ARN=$LAMBDA_ARN|" "$CONFIG_FILE"
+    else
+        sed -i "s|CLOUDSWAY_LAMBDA_ARN=.*|CLOUDSWAY_LAMBDA_ARN=$LAMBDA_ARN|" "$CONFIG_FILE"
+    fi
+else
+    # 添加新的 ARN
+    echo "CLOUDSWAY_LAMBDA_ARN=$LAMBDA_ARN" >> "$CONFIG_FILE"
+fi
+
+echo "✓ Lambda ARN 已保存到 config.txt"
+
+# 清理临时文件
+rm -rf /tmp/cloudsway-lambda
+rm -f /tmp/cloudsway-lambda-deployment.zip
+rm -f /tmp/trust-policy.json
+
+echo "================================================"
+echo "部署完成！"
+echo "================================================"
+echo ""
+echo "Lambda Function Name: $FUNCTION_NAME"
+echo "Lambda Function ARN: $LAMBDA_ARN"
+echo "Region: $REGION"
+echo ""
+echo "下一步:"
+echo "  1. 测试 Lambda: ./test_lambda.sh"
+echo "  2. 添加到 Gateway: python3 add_target.py"
+echo "  3. 测试 Target: ./test_target.sh"
+echo ""
