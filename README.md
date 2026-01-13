@@ -30,9 +30,15 @@ amazon-quick-suite-web-search-integration/
 │   │   ├── deploy.sh
 │   │   └── add_target.py
 │   │
-│   └── metaso/                   # 秘塔搜索
+│   ├── metaso/                   # 秘塔搜索
+│   │   ├── README.md
+│   │   ├── metaso_lambda_function.py
+│   │   ├── deploy.sh
+│   │   └── add_target.py
+│   │
+│   └── zhipu/                    # 智谱搜索
 │       ├── README.md
-│       ├── metaso_lambda_function.py
+│       ├── zhipu_lambda_function.py
 │       ├── deploy.sh
 │       └── add_target.py
 │
@@ -110,7 +116,20 @@ python3 add_target.py
 cd ../..
 ```
 
-##### 选项 C: 两者都部署
+##### 选项 C: 部署智谱搜索
+
+```bash
+# 设置 API Key
+export ZHIPU_API_KEY="your-zhipu-api-key"
+
+# 部署智谱
+cd providers/zhipu
+./deploy.sh
+python3 add_target.py
+cd ../..
+```
+
+##### 选项 D: 部署全部
 
 ```bash
 # 部署博查
@@ -120,6 +139,10 @@ cd providers/bocha && ./deploy.sh && python3 add_target.py && cd ../..
 # 部署秘塔
 export METASO_API_KEY="your-metaso-api-key"
 cd providers/metaso && ./deploy.sh && python3 add_target.py && cd ../..
+
+# 部署智谱
+export ZHIPU_API_KEY="your-zhipu-api-key"
+cd providers/zhipu && ./deploy.sh && python3 add_target.py && cd ../..
 ```
 
 #### 第三步：配置 Quick Suite
@@ -148,6 +171,18 @@ cd providers/metaso && ./deploy.sh && python3 add_target.py && cd ../..
 - **适用场景**: 学术研究、技术文档、多媒体内容
 - **文档**: [providers/metaso/README.md](providers/metaso/README.md)
 
+### 智谱 (Zhipu)
+
+- **类型**: 大模型优化搜索引擎
+- **特点**: 
+  - 多搜索引擎支持（标准版、专业版、搜狗、夸克）
+  - 时间范围过滤
+  - 域名白名单过滤
+  - 摘要长度控制
+  - 搜索意图识别
+- **适用场景**: 精确搜索、时效性内容、特定网站搜索
+- **文档**: [providers/zhipu/README.md](providers/zhipu/README.md)
+
 ## 🎯 使用示例
 
 ### 在 Quick Suite 中测试
@@ -162,9 +197,14 @@ cd providers/metaso && ./deploy.sh && python3 add_target.py && cd ../..
 使用秘塔搜索查找关于量子计算的学术论文
 ```
 
+#### 智谱搜索
+```
+使用智谱搜索查找关于量子计算的最新进展，只看最近一周的内容
+```
+
 #### 对比搜索
 ```
-分别使用博查和秘塔搜索关于"人工智能"的信息，并对比结果
+分别使用博查、秘塔和智谱搜索关于"人工智能"的信息，并对比结果
 ```
 
 ## 📊 架构说明
@@ -177,24 +217,30 @@ graph TB
     
     BOCHA_T[Bocha Target]
     METASO_T[Metaso Target]
+    ZHIPU_T[Zhipu Target]
     
     BOCHA_L[Bocha Lambda]
     METASO_L[Metaso Lambda]
+    ZHIPU_L[Zhipu Lambda]
     
     BOCHA_API[Bocha API]
     METASO_API[Metaso API]
+    ZHIPU_API[Zhipu API]
     
     QS --> COGNITO
     COGNITO --> GATEWAY
     
     GATEWAY --> BOCHA_T
     GATEWAY --> METASO_T
+    GATEWAY --> ZHIPU_T
     
     BOCHA_T --> BOCHA_L
     METASO_T --> METASO_L
+    ZHIPU_T --> ZHIPU_L
     
     BOCHA_L --> BOCHA_API
     METASO_L --> METASO_API
+    ZHIPU_L --> ZHIPU_API
 ```
 
 **核心优势**:
@@ -227,6 +273,9 @@ aws logs tail /aws/lambda/BochaWebSearchFunction --follow
 
 # 秘塔日志
 aws logs tail /aws/lambda/MetasoWebSearchFunction --follow
+
+# 智谱日志
+aws logs tail /aws/lambda/ZhipuWebSearchFunction --follow
 ```
 
 ### 更新 API Key
@@ -241,6 +290,11 @@ aws lambda update-function-configuration \
 aws lambda update-function-configuration \
   --function-name MetasoWebSearchFunction \
   --environment Variables={METASO_API_KEY=new-key}
+
+# 更新智谱 API Key
+aws lambda update-function-configuration \
+  --function-name ZhipuWebSearchFunction \
+  --environment Variables={ZHIPU_API_KEY=new-key}
 ```
 
 ## ➕ 添加新的 Provider
@@ -260,6 +314,7 @@ aws lambda update-function-configuration \
 - [故障排除](docs/TROUBLESHOOTING.md) - 常见问题解决
 - [博查 Provider](providers/bocha/README.md) - 博查搜索文档
 - [秘塔 Provider](providers/metaso/README.md) - 秘塔搜索文档
+- [智谱 Provider](providers/zhipu/README.md) - 智谱搜索文档
 
 ## 💰 成本估算
 
@@ -273,6 +328,7 @@ aws lambda update-function-configuration \
 | Gateway | ~$5 |
 | 博查 API | 根据订阅 |
 | 秘塔 API | 根据订阅 |
+| 智谱 API | 0.01-0.05元/次 |
 | **基础设施总计** | **~$5.30** |
 
 ## 🔒 安全最佳实践

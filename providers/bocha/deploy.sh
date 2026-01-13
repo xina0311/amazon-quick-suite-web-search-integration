@@ -2,7 +2,7 @@
 set -e
 
 # 配置变量
-REGION="${REGION:-us-west-2}"
+REGION="${REGION:-us-east-1}"
 LAMBDA_FUNCTION_NAME="BochaWebSearchFunction"
 LAMBDA_ROLE_NAME="BochaLambdaExecutionRole"
 
